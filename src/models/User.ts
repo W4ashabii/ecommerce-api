@@ -6,6 +6,7 @@ export interface IUser extends Document {
   picture?: string;
   role: 'admin' | 'customer' | 'none';
   googleId?: string;
+  theme: 'light' | 'dark';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +35,11 @@ const userSchema = new Schema<IUser>(
     },
     googleId: {
       type: String
+    },
+    theme: {
+      type: String,
+      enum: ['light', 'dark'],
+      default: 'light'
     }
   },
   {

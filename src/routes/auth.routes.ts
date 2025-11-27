@@ -3,6 +3,7 @@ import { container } from 'tsyringe';
 import { z } from 'zod';
 import { AuthService } from '../services/auth.service.js';
 import { authenticate } from '../middleware/auth.js';
+import { config } from '../config/index.js';
 
 const router: Router = Router();
 
@@ -12,6 +13,19 @@ const googleAuthSchema = z.object({
 
 const googleCodeSchema = z.object({
   code: z.string().min(1, 'Authorization code is required')
+});
+
+const themeSchema = z.object({
+  theme: z.enum(['light', 'dark'])
+});
+
+// Cookie options for JWT token
+const getCookieOptions = () => ({
+  httpOnly: true,
+  secure: config.nodeEnv === 'production',
+  sameSite: config.nodeEnv === 'production' ? 'strict' as const : 'lax' as const,
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  path: '/',
 });
 
 // Get Google OAuth URL (for redirect flow)
@@ -36,14 +50,17 @@ router.post('/google/callback', async (req: Request, res: Response) => {
   // Generate JWT
   const token = authService.generateToken(user);
   
+  // Set HTTP-only cookie
+  res.cookie('auth_token', token, getCookieOptions());
+  
   res.json({
-    token,
     user: {
       id: user._id,
       email: user.email,
       name: user.name,
       picture: user.picture,
-      role: user.role
+      role: user.role,
+      theme: user.theme
     }
   });
 });
@@ -63,14 +80,17 @@ router.post('/google', async (req: Request, res: Response) => {
   // Generate JWT
   const token = authService.generateToken(user);
   
+  // Set HTTP-only cookie
+  res.cookie('auth_token', token, getCookieOptions());
+  
   res.json({
-    token,
     user: {
       id: user._id,
       email: user.email,
       name: user.name,
       picture: user.picture,
-      role: user.role
+      role: user.role,
+      theme: user.theme
     }
   });
 });
@@ -117,8 +137,35 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
     email: user.email,
     name: user.name,
     picture: user.picture,
-    role: user.role
+    role: user.role,
+    theme: user.theme
   });
+});
+
+// Logout - clear cookie
+router.post('/logout', (req: Request, res: Response) => {
+  res.clearCookie('auth_token', {
+    httpOnly: true,
+    secure: config.nodeEnv === 'production',
+    sameSite: config.nodeEnv === 'production' ? 'strict' : 'lax',
+    path: '/',
+  });
+  res.json({ success: true });
+});
+
+// Update user theme preference
+router.put('/theme', authenticate, async (req: Request, res: Response) => {
+  const { theme } = themeSchema.parse(req.body);
+  const authService = container.resolve<AuthService>('AuthService');
+  
+  const user = await authService.updateUserTheme(req.user!.userId, theme);
+  
+  if (!user) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+  
+  res.json({ theme: user.theme });
 });
 
 export { router as authRoutes };

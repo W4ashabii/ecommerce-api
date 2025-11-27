@@ -1,5 +1,5 @@
 import { injectable } from 'tsyringe';
-import { Settings, ISettings, IHeroSlide, IBanner } from '../models/Settings.js';
+import { Settings, ISettings, IHeroSlide, IBanner, IFloatingElement } from '../models/Settings.js';
 import { deleteFromCloudinary } from '../config/cloudinary.js';
 
 const SETTINGS_KEY = 'main';
@@ -10,6 +10,7 @@ export class SettingsService {
     let settings = await Settings.findOne({ key: SETTINGS_KEY });
     
     if (!settings) {
+      // Create new settings with floatingElements
       settings = await Settings.create({
         key: SETTINGS_KEY,
         heroSlides: [],
@@ -17,11 +18,38 @@ export class SettingsService {
         featuredProductIds: [],
         socialLinks: {},
         contactInfo: {},
-        seoDefaults: {}
+        seoDefaults: {},
+        floatingElements: [
+          { type: 'icon', icon: 'heart', position: 'top-right', isActive: true },
+          { type: 'icon', icon: 'star', position: 'bottom-right', isActive: true },
+          { type: 'icon', icon: 'sparkles', position: 'middle-left', isActive: true }
+        ]
       });
+    } else {
+      // Check if floatingElements are actually persisted in the database
+      const rawSettings = await Settings.findOne({ key: SETTINGS_KEY }).lean();
+      if (!rawSettings?.floatingElements || rawSettings.floatingElements.length === 0) {
+        // Persist floatingElements to database (one-time migration)
+        const updated = await Settings.findOneAndUpdate(
+          { key: SETTINGS_KEY },
+          { 
+            $set: { 
+              floatingElements: [
+                { type: 'icon', icon: 'heart', position: 'top-right', isActive: true },
+                { type: 'icon', icon: 'star', position: 'bottom-right', isActive: true },
+                { type: 'icon', icon: 'sparkles', position: 'middle-left', isActive: true }
+              ]
+            } 
+          },
+          { new: true }
+        );
+        if (updated) {
+          settings = updated;
+        }
+      }
     }
 
-    return settings;
+    return settings!;
   }
 
   async updateSettings(updates: Partial<ISettings>): Promise<ISettings> {
@@ -189,6 +217,50 @@ export class SettingsService {
     return Settings.findOneAndUpdate(
       { key: SETTINGS_KEY },
       { $set: { seoDefaults: seo } },
+      { new: true, upsert: true }
+    ) as Promise<ISettings>;
+  }
+
+  // Floating Elements
+  async updateFloatingElements(elements: Partial<IFloatingElement>[]): Promise<ISettings> {
+    return Settings.findOneAndUpdate(
+      { key: SETTINGS_KEY },
+      { $set: { floatingElements: elements } },
+      { new: true, upsert: true }
+    ) as Promise<ISettings>;
+  }
+
+  async updateFloatingElement(elementId: string, updates: Partial<IFloatingElement>): Promise<ISettings | null> {
+    // If changing from image to icon, delete old image
+    const settings = await Settings.findOne({ key: SETTINGS_KEY });
+    const element = settings?.floatingElements?.find(e => (e as any)._id?.toString() === elementId);
+    
+    if (element?.type === 'image' && updates.type === 'icon' && element.imagePublicId) {
+      try {
+        await deleteFromCloudinary(element.imagePublicId);
+      } catch (error) {
+        console.error('Failed to delete floating element image:', error);
+      }
+    }
+
+    const updateFields: Record<string, unknown> = {};
+    
+    Object.entries(updates).forEach(([key, value]) => {
+      updateFields[`floatingElements.$.${key}`] = value;
+    });
+
+    return Settings.findOneAndUpdate(
+      { key: SETTINGS_KEY, 'floatingElements._id': elementId },
+      { $set: updateFields },
+      { new: true }
+    );
+  }
+
+  // Website Theme
+  async updateWebsiteTheme(theme: 'floral' | 'summer' | 'winter' | 'monsoon' | 'classy' | 'monochrome'): Promise<ISettings> {
+    return Settings.findOneAndUpdate(
+      { key: SETTINGS_KEY },
+      { $set: { websiteTheme: theme } },
       { new: true, upsert: true }
     ) as Promise<ISettings>;
   }

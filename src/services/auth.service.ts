@@ -183,5 +183,13 @@ export class AuthService {
   async getUserById(userId: string): Promise<IUser | null> {
     return User.findById(userId);
   }
+
+  async updateUserTheme(userId: string, theme: 'light' | 'dark'): Promise<IUser | null> {
+    return User.findByIdAndUpdate(
+      userId,
+      { theme },
+      { new: true }
+    );
+  }
 }
 

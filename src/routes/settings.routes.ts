@@ -28,6 +28,15 @@ const bannerSchema = z.object({
   isActive: z.boolean().default(true)
 });
 
+const floatingElementSchema = z.object({
+  type: z.enum(['icon', 'image']),
+  icon: z.enum(['heart', 'star', 'sparkles']).optional(),
+  image: z.string().optional(),
+  imagePublicId: z.string().optional(),
+  position: z.enum(['top-right', 'bottom-right', 'middle-left']),
+  isActive: z.boolean().default(true)
+});
+
 // Public routes
 router.get('/', async (req: Request, res: Response) => {
   const settingsService = container.resolve<SettingsService>('SettingsService');
@@ -182,6 +191,44 @@ router.put('/seo', requireAdmin, async (req: Request, res: Response) => {
   }).parse(req.body);
   
   const settings = await settingsService.updateSeoDefaults(seo);
+  res.json(settings);
+});
+
+// Floating Elements
+router.put('/floating-elements', requireAdmin, async (req: Request, res: Response) => {
+  const settingsService = container.resolve<SettingsService>('SettingsService');
+  
+  const { elements } = z.object({
+    elements: z.array(floatingElementSchema)
+  }).parse(req.body);
+  
+  const settings = await settingsService.updateFloatingElements(elements);
+  res.json(settings);
+});
+
+router.put('/floating-elements/:id', requireAdmin, async (req: Request, res: Response) => {
+  const settingsService = container.resolve<SettingsService>('SettingsService');
+  
+  const element = floatingElementSchema.partial().parse(req.body);
+  const settings = await settingsService.updateFloatingElement(req.params.id, element);
+  
+  if (!settings) {
+    res.status(404).json({ error: 'Floating element not found' });
+    return;
+  }
+  
+  res.json(settings);
+});
+
+// Website Theme
+router.put('/website-theme', requireAdmin, async (req: Request, res: Response) => {
+  const settingsService = container.resolve<SettingsService>('SettingsService');
+  
+  const { theme } = z.object({
+    theme: z.enum(['floral', 'summer', 'winter', 'monsoon', 'classy', 'monochrome'])
+  }).parse(req.body);
+  
+  const settings = await settingsService.updateWebsiteTheme(theme);
   res.json(settings);
 });
 

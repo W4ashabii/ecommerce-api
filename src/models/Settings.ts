@@ -64,6 +64,16 @@ export interface ICollectionsPage {
   featuredCollectionIds: string[];
 }
 
+export interface IFloatingElement {
+  _id?: Types.ObjectId;
+  type: 'icon' | 'image';
+  icon?: 'heart' | 'star' | 'sparkles';
+  image?: string;
+  imagePublicId?: string;
+  position: 'top-right' | 'bottom-right' | 'middle-left';
+  isActive: boolean;
+}
+
 export interface ISettings extends Document {
   key: string;
   heroSlides: IHeroSlide[];
@@ -93,6 +103,8 @@ export interface ISettings extends Document {
   };
   aboutPage: IAboutPage;
   collectionsPage: ICollectionsPage;
+  floatingElements: IFloatingElement[];
+  websiteTheme: 'floral' | 'summer' | 'winter' | 'monsoon' | 'classy' | 'monochrome';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -135,6 +147,22 @@ const teamMemberSchema = new Schema<ITeamMember>(
     role: { type: String, required: true },
     image: { type: String },
     imagePublicId: { type: String }
+  },
+  { _id: true }
+);
+
+const floatingElementSchema = new Schema<IFloatingElement>(
+  {
+    type: { type: String, enum: ['icon', 'image'], default: 'icon' },
+    icon: { type: String, enum: ['heart', 'star', 'sparkles'] },
+    image: { type: String },
+    imagePublicId: { type: String },
+    position: { 
+      type: String, 
+      enum: ['top-right', 'bottom-right', 'middle-left'], 
+      required: true 
+    },
+    isActive: { type: Boolean, default: true }
   },
   { _id: true }
 );
@@ -203,6 +231,15 @@ const settingsSchema = new Schema<ISettings>(
       heroImage: { type: String },
       heroImagePublicId: { type: String },
       featuredCollectionIds: [{ type: String }]
+    },
+    floatingElements: {
+      type: [floatingElementSchema],
+      default: undefined // Handled in service to ensure IDs are persisted
+    },
+    websiteTheme: {
+      type: String,
+      enum: ['floral', 'summer', 'winter', 'monsoon', 'classy', 'monochrome'],
+      default: 'floral'
     }
   },
   {

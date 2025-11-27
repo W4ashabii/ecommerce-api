@@ -11,20 +11,36 @@ declare global {
   }
 }
 
+// Helper to get token from cookie or Authorization header
+const getToken = (req: Request): string | null => {
+  // First try HTTP-only cookie
+  const cookieToken = req.cookies?.auth_token;
+  if (cookieToken) {
+    return cookieToken;
+  }
+  
+  // Fallback to Authorization header (for backward compatibility)
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7);
+  }
+  
+  return null;
+};
+
 export const authenticate = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const authHeader = req.headers.authorization;
+    const token = getToken(req);
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       res.status(401).json({ error: 'No token provided' });
       return;
     }
 
-    const token = authHeader.substring(7);
     const authService = container.resolve<AuthService>('AuthService');
     
     const payload = authService.verifyToken(token);
@@ -42,14 +58,13 @@ export const requireAdmin = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const authHeader = req.headers.authorization;
+    const token = getToken(req);
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       res.status(401).json({ error: 'No token provided' });
       return;
     }
 
-    const token = authHeader.substring(7);
     const authService = container.resolve<AuthService>('AuthService');
     
     const { isAdmin, user } = await authService.validateAdminAccess(token);
@@ -77,10 +92,9 @@ export const optionalAuth = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const authHeader = req.headers.authorization;
+    const token = getToken(req);
 
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
+    if (token) {
       const authService = container.resolve<AuthService>('AuthService');
       
       try {
@@ -96,4 +110,5 @@ export const optionalAuth = async (
     next();
   }
 };
+
 
