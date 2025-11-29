@@ -82,6 +82,7 @@ export const requireAdmin = async (
     
     next();
   } catch (error) {
+    console.error('Admin check error:', error);
     res.status(403).json({ error: 'Admin access denied' });
   }
 };

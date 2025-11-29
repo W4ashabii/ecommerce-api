@@ -22,8 +22,11 @@ const themeSchema = z.object({
 // Cookie options for JWT token
 const getCookieOptions = () => ({
   httpOnly: true,
-  secure: config.nodeEnv === 'production',
-  sameSite: config.nodeEnv === 'production' ? 'strict' as const : 'lax' as const,
+  secure: true, // Always secure in production (HTTPS required)
+  // Use 'none' to allow cross-subdomain requests
+  // Frontend (amyzz.vercel.app) and API (amyz-api.vercel.app) are different subdomains
+  // 'none' requires secure: true (HTTPS)
+  sameSite: 'none' as const,
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   path: '/',
 });
@@ -170,8 +173,8 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
 router.post('/logout', (req: Request, res: Response) => {
   res.clearCookie('auth_token', {
     httpOnly: true,
-    secure: config.nodeEnv === 'production',
-    sameSite: config.nodeEnv === 'production' ? 'strict' : 'lax',
+    secure: true,
+    sameSite: 'none',
     path: '/',
   });
   res.json({ success: true });

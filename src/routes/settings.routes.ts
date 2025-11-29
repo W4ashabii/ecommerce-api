@@ -37,7 +37,8 @@ const floatingElementSchema = z.object({
   isActive: z.boolean().default(true)
 });
 
-// Public routes
+// Public routes - accessible to everyone (logged in or not)
+// This includes the website theme which applies to all users
 router.get('/', async (req: Request, res: Response) => {
   try {
     const settingsService = container.resolve<SettingsService>('SettingsService');
