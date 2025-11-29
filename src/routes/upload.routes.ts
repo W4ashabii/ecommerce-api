@@ -32,7 +32,46 @@ router.post('/product-images', async (req: Request, res: Response) => {
   res.json(results);
 });
 
-// Upload 3D model
+// Get Cloudinary upload signature for direct upload (bypasses Vercel body size limit)
+router.get('/model/signature', async (req: Request, res: Response) => {
+  try {
+    const { cloudinary } = await import('../config/cloudinary.js');
+    const { config } = await import('../config/index.js');
+    
+    if (!config.cloudinary.apiSecret || !config.cloudinary.apiKey || !config.cloudinary.cloudName) {
+      res.status(500).json({ error: 'Cloudinary not configured' });
+      return;
+    }
+    
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const folder = 'ecommerce/models';
+    
+    // Generate signature for raw file upload
+    const params = {
+      timestamp,
+      folder,
+      resource_type: 'raw',
+    };
+    
+    const signature = cloudinary.utils.api_sign_request(params, config.cloudinary.apiSecret);
+    
+    res.json({
+      signature,
+      timestamp,
+      folder,
+      cloudName: config.cloudinary.cloudName,
+      apiKey: config.cloudinary.apiKey,
+    });
+  } catch (error) {
+    console.error('Failed to generate upload signature:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate upload signature',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Upload 3D model (legacy - kept for backward compatibility, but has size limits)
 router.post('/model', async (req: Request, res: Response) => {
   const uploadService = container.resolve<UploadService>('UploadService');
   
