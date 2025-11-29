@@ -230,14 +230,38 @@ router.put('/floating-elements/:id', requireAdmin, async (req: Request, res: Res
 
 // Website Theme
 router.put('/website-theme', requireAdmin, async (req: Request, res: Response) => {
-  const settingsService = container.resolve<SettingsService>('SettingsService');
-  
-  const { theme } = z.object({
-    theme: z.enum(['floral', 'summer', 'winter', 'monsoon', 'classy', 'monochrome'])
-  }).parse(req.body);
-  
-  const settings = await settingsService.updateWebsiteTheme(theme);
-  res.json(settings);
+  try {
+    const settingsService = container.resolve<SettingsService>('SettingsService');
+    
+    const { theme } = z.object({
+      theme: z.enum(['floral', 'summer', 'winter', 'monsoon', 'classy', 'monochrome'])
+    }).parse(req.body);
+    
+    console.log('Updating website theme to:', theme);
+    const settings = await settingsService.updateWebsiteTheme(theme);
+    console.log('Website theme updated successfully');
+    res.json(settings);
+  } catch (error) {
+    console.error('Failed to update website theme:', error);
+    console.error('Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ 
+        error: 'Invalid theme value',
+        details: error.errors 
+      });
+      return;
+    }
+    
+    res.status(500).json({
+      error: 'Failed to update website theme',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 export { router as settingsRoutes };
