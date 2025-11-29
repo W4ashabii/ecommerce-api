@@ -127,22 +127,29 @@ app.use(errorHandler);
 let dbConnecting = false;
 
 const ensureDatabaseConnection = async () => {
-  // Check if already connected (readyState: 0 = disconnected, 1 = connected, 2 = connecting)
+  // Check if already connected
   if (mongoose.connection.readyState === 1) {
     return; // Already connected
   }
   
-  // Check if connection is in progress
+  // If connection is in progress, wait with timeout
   if (mongoose.connection.readyState === 2) {
-    // Connection in progress, wait for it with timeout
+    console.log('Database connection in progress, waiting...');
     return new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => resolve(), 1000); // 1 second timeout
+      const timeout = setTimeout(() => {
+        console.warn('Database connection timeout - proceeding without connection');
+        resolve(); // Don't block requests
+      }, 3000); // 3 second timeout
+      
       mongoose.connection.once('connected', () => {
         clearTimeout(timeout);
+        console.log('Database connected after wait');
         resolve();
       });
-      mongoose.connection.once('error', () => {
+      
+      mongoose.connection.once('error', (error) => {
         clearTimeout(timeout);
+        console.error('Database connection error during wait:', error);
         resolve(); // Don't block on error
       });
     });
@@ -150,14 +157,19 @@ const ensureDatabaseConnection = async () => {
   
   // Prevent multiple simultaneous connection attempts
   if (dbConnecting) {
+    console.log('Database connection already in progress, skipping...');
     return;
   }
   
   dbConnecting = true;
   try {
+    console.log('Initiating database connection...');
     await connectDatabase();
+    console.log('Database connection successful');
   } catch (error) {
     console.error('Failed to connect to database:', error);
+    console.error('Error type:', error?.constructor?.name);
+    console.error('Error message:', error instanceof Error ? error.message : String(error));
     // Don't throw - allow the function to continue
     // Database connection will be retried on next request
   } finally {
