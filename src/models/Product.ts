@@ -3,7 +3,6 @@ import mongoose, { Document, Schema, Types } from 'mongoose';
 export interface IColorVariant {
   name: string;
   hex: string;
-  images: string[];
   stock: number;
 }
 
@@ -14,10 +13,9 @@ export interface IProduct extends Document {
   price: number;
   salePrice?: number;
   category: Types.ObjectId;
+  images: string[]; // Product images (not per color variant)
   colorVariants: IColorVariant[];
   sizes: string[];
-  modelUrl?: string;
-  modelPublicId?: string;
   featured: boolean;
   isNewArrival: boolean;
   isBestSeller: boolean;
@@ -31,7 +29,6 @@ const colorVariantSchema = new Schema<IColorVariant>(
   {
     name: { type: String, required: true },
     hex: { type: String, required: true },
-    images: [{ type: String }],
     stock: { type: Number, default: 0, min: 0 }
   },
   { _id: true }
@@ -68,17 +65,14 @@ const productSchema = new Schema<IProduct>(
       ref: 'Category',
       required: true
     },
+    images: [{
+      type: String
+    }],
     colorVariants: [colorVariantSchema],
     sizes: [{
       type: String,
       enum: ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'One Size']
     }],
-    modelUrl: {
-      type: String
-    },
-    modelPublicId: {
-      type: String
-    },
     featured: {
       type: Boolean,
       default: false

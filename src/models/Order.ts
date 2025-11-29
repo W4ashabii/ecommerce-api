@@ -16,9 +16,9 @@ export interface IShippingAddress {
   email: string;
   phone: string;
   address: string;
-  city: string;
-  state: string;
-  postalCode: string;
+  city?: string; // Optional - defaults to "Kathmandu Valley"
+  state?: string; // Optional - defaults to "Bagmati"
+  postalCode?: string; // Optional - not required for Kathmandu Valley
   country: string;
 }
 
@@ -32,7 +32,7 @@ export interface IOrder extends Document {
   shippingCost: number;
   tax: number;
   total: number;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'pending' | 'processing' | 'delivered' | 'cancelled';
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   paymentMethod?: string;
   paymentId?: string;
@@ -62,10 +62,10 @@ const shippingAddressSchema = new Schema<IShippingAddress>(
     email: { type: String, required: true },
     phone: { type: String, required: true },
     address: { type: String, required: true },
-    city: { type: String, required: true },
-    state: { type: String, required: true },
-    postalCode: { type: String, required: true },
-    country: { type: String, required: true }
+    city: { type: String, default: 'Kathmandu Valley' },
+    state: { type: String, default: 'Bagmati' },
+    postalCode: { type: String },
+    country: { type: String, required: true, default: 'Nepal' }
   },
   { _id: false }
 );
@@ -110,7 +110,7 @@ const orderSchema = new Schema<IOrder>(
     },
     status: {
       type: String,
-      enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
+      enum: ['pending', 'processing', 'delivered', 'cancelled'],
       default: 'pending'
     },
     paymentStatus: {

@@ -115,8 +115,8 @@ export class OrderService {
       const itemTotal = price * item.quantity;
       subtotal += itemTotal;
 
-      // Get first image from first color variant or undefined
-      const image = product.colorVariants[0]?.images[0];
+      // Get first image from product images array
+      const image = product.images?.[0];
 
       orderItems.push({
         product: new Types.ObjectId(item.productId) as any,
@@ -134,11 +134,26 @@ export class OrderService {
     const shippingCost = subtotal > 100 ? 0 : 10; // Free shipping over $100
     const total = subtotal + tax + shippingCost;
 
+    // Set defaults for Kathmandu Valley delivery
+    const shippingAddress = {
+      ...input.shippingAddress,
+      city: input.shippingAddress.city || 'Kathmandu Valley',
+      state: input.shippingAddress.state || 'Bagmati',
+      country: input.shippingAddress.country || 'Nepal',
+    };
+
+    // Generate order number
+    const date = new Date();
+    const prefix = `ORD-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const count = await Order.countDocuments();
+    const orderNumber = `${prefix}-${String(count + 1).padStart(6, '0')}`;
+
     const order = new Order({
+      orderNumber,
       user: input.userId ? new Types.ObjectId(input.userId) : undefined,
       guestEmail: input.guestEmail,
       items: orderItems,
-      shippingAddress: input.shippingAddress,
+      shippingAddress,
       subtotal,
       tax,
       shippingCost,
@@ -176,7 +191,7 @@ export class OrderService {
   async addTrackingNumber(id: string, trackingNumber: string): Promise<IOrder | null> {
     return Order.findByIdAndUpdate(
       id,
-      { $set: { trackingNumber, status: 'shipped' } },
+      { $set: { trackingNumber } },
       { new: true, runValidators: true }
     );
   }
@@ -189,26 +204,28 @@ export class OrderService {
     );
   }
 
+  async delete(id: string): Promise<boolean> {
+    const result = await Order.findByIdAndDelete(id);
+    return !!result;
+  }
+
   async getStats(): Promise<{
     totalOrders: number;
     totalRevenue: number;
     pendingOrders: number;
     processingOrders: number;
-    shippedOrders: number;
     deliveredOrders: number;
   }> {
     const [
       totalOrders,
       pendingOrders,
       processingOrders,
-      shippedOrders,
       deliveredOrders,
       revenueResult
     ] = await Promise.all([
       Order.countDocuments(),
       Order.countDocuments({ status: 'pending' }),
       Order.countDocuments({ status: 'processing' }),
-      Order.countDocuments({ status: 'shipped' }),
       Order.countDocuments({ status: 'delivered' }),
       Order.aggregate([
         { $match: { paymentStatus: 'paid' } },
@@ -221,7 +238,6 @@ export class OrderService {
       totalRevenue: revenueResult[0]?.total || 0,
       pendingOrders,
       processingOrders,
-      shippedOrders,
       deliveredOrders
     };
   }

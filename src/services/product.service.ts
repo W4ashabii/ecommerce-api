@@ -23,10 +23,9 @@ export interface ProductInput {
   price: number;
   salePrice?: number;
   category: string;
+  images?: string[];
   colorVariants?: IColorVariant[];
   sizes?: string[];
-  modelUrl?: string;
-  modelPublicId?: string;
   featured?: boolean;
   isNewArrival?: boolean;
   isBestSeller?: boolean;
@@ -68,7 +67,13 @@ export class ProductService {
     if (filters.isActive !== undefined) query.isActive = filters.isActive;
 
     if (filters.search) {
-      query.$text = { $search: filters.search };
+      // Use regex search for case-insensitive matching across name, description, and tags
+      const searchRegex = new RegExp(filters.search, 'i');
+      query.$or = [
+        { name: searchRegex },
+        { description: searchRegex },
+        { tags: { $in: [searchRegex] } }
+      ];
     }
 
     const skip = (page - 1) * limit;
@@ -178,20 +183,22 @@ export class ProductService {
       return false;
     }
 
-    // Delete model from Cloudinary if exists
-    if (product.modelPublicId) {
-      try {
-        await deleteFromCloudinary(product.modelPublicId);
-      } catch (error) {
-        console.error('Failed to delete model from Cloudinary:', error);
-      }
-    }
-
-    // Delete color variant images from Cloudinary
-    for (const variant of product.colorVariants) {
-      for (const image of variant.images) {
-        // Extract public ID from URL if stored
-        // This assumes images are stored with their public IDs
+    // Delete product images from Cloudinary
+    if (product.images && product.images.length > 0) {
+      for (const imageUrl of product.images) {
+        try {
+          // Extract public ID from Cloudinary URL
+          // Cloudinary URLs format: https://res.cloudinary.com/{cloud_name}/image/upload/{public_id}.{format}
+          // or: https://res.cloudinary.com/{cloud_name}/image/upload/v{version}/{public_id}.{format}
+          const urlMatch = imageUrl.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.[^.]+)?$/);
+          if (urlMatch && urlMatch[1]) {
+            const publicId = urlMatch[1];
+            await deleteFromCloudinary(publicId);
+          }
+        } catch (error) {
+          console.error('Failed to delete image from Cloudinary:', error);
+          // Continue deleting other images even if one fails
+        }
       }
     }
 

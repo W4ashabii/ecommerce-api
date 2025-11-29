@@ -64,16 +64,6 @@ export interface ICollectionsPage {
   featuredCollectionIds: string[];
 }
 
-export interface IFloatingElement {
-  _id?: Types.ObjectId;
-  type: 'icon' | 'image';
-  icon?: 'heart' | 'star' | 'sparkles';
-  image?: string;
-  imagePublicId?: string;
-  position: 'top-right' | 'bottom-right' | 'middle-left';
-  isActive: boolean;
-}
-
 export interface ISettings extends Document {
   key: string;
   heroSlides: IHeroSlide[];
@@ -103,7 +93,15 @@ export interface ISettings extends Document {
   };
   aboutPage: IAboutPage;
   collectionsPage: ICollectionsPage;
-  floatingElements: IFloatingElement[];
+  featuredCollection: {
+    label: string;
+    title: string;
+    titleHighlight: string;
+    description: string;
+    buttonText: string;
+    collectionId: string;
+    isActive: boolean;
+  };
   websiteTheme: 'floral' | 'summer' | 'winter' | 'monsoon' | 'classy' | 'monochrome';
   createdAt: Date;
   updatedAt: Date;
@@ -147,22 +145,6 @@ const teamMemberSchema = new Schema<ITeamMember>(
     role: { type: String, required: true },
     image: { type: String },
     imagePublicId: { type: String }
-  },
-  { _id: true }
-);
-
-const floatingElementSchema = new Schema<IFloatingElement>(
-  {
-    type: { type: String, enum: ['icon', 'image'], default: 'icon' },
-    icon: { type: String, enum: ['heart', 'star', 'sparkles'] },
-    image: { type: String },
-    imagePublicId: { type: String },
-    position: { 
-      type: String, 
-      enum: ['top-right', 'bottom-right', 'middle-left'], 
-      required: true 
-    },
-    isActive: { type: Boolean, default: true }
   },
   { _id: true }
 );
@@ -232,9 +214,14 @@ const settingsSchema = new Schema<ISettings>(
       heroImagePublicId: { type: String },
       featuredCollectionIds: [{ type: String }]
     },
-    floatingElements: {
-      type: [floatingElementSchema],
-      default: undefined // Handled in service to ensure IDs are persisted
+    featuredCollection: {
+      label: { type: String, default: 'Featured Collection' },
+      title: { type: String, default: 'Summer' },
+      titleHighlight: { type: String, default: 'Essentials' },
+      description: { type: String, default: 'Embrace the season with our curated selection of lightweight fabrics and vibrant designs perfect for warm days.' },
+      buttonText: { type: String, default: 'Explore Collection' },
+      collectionId: { type: String },
+      isActive: { type: Boolean, default: true }
     },
     websiteTheme: {
       type: String,

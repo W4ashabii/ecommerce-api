@@ -21,7 +21,15 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ): void => {
-  console.error('Error:', err);
+  // Safely log error to prevent circular reference issues
+  try {
+    console.error('Error:', err.message || err);
+    if (err.stack) {
+      console.error('Stack:', err.stack);
+    }
+  } catch (logError) {
+    console.error('Error occurred while logging:', logError);
+  }
 
   // Zod validation error
   if (err instanceof ZodError) {

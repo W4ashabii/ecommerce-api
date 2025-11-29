@@ -12,10 +12,10 @@ const shippingAddressSchema = z.object({
   email: z.string().email(),
   phone: z.string().min(1),
   address: z.string().min(1),
-  city: z.string().min(1),
-  state: z.string().min(1),
-  postalCode: z.string().min(1),
-  country: z.string().min(1)
+  city: z.string().default('Kathmandu Valley'),
+  state: z.string().default('Bagmati'),
+  postalCode: z.string().optional(),
+  country: z.string().min(1).default('Nepal')
 });
 
 const createOrderSchema = z.object({
@@ -32,6 +32,13 @@ const createOrderSchema = z.object({
 // Public routes
 router.post('/', optionalAuth, async (req: Request, res: Response) => {
   const orderService = container.resolve<OrderService>('OrderService');
+  
+  // Clean up undefined values from shipping address before validation
+  if (req.body.shippingAddress) {
+    if (req.body.shippingAddress.city === undefined) delete req.body.shippingAddress.city;
+    if (req.body.shippingAddress.state === undefined) delete req.body.shippingAddress.state;
+    if (req.body.shippingAddress.postalCode === undefined) delete req.body.shippingAddress.postalCode;
+  }
   
   const data = createOrderSchema.parse(req.body);
   
@@ -117,7 +124,7 @@ router.patch('/:id/status', requireAdmin, async (req: Request, res: Response) =>
   const orderService = container.resolve<OrderService>('OrderService');
   
   const { status } = z.object({
-    status: z.enum(['pending', 'processing', 'shipped', 'delivered', 'cancelled'])
+    status: z.enum(['pending', 'processing', 'delivered', 'cancelled'])
   }).parse(req.body);
   
   const order = await orderService.updateStatus(req.params.id, status);
@@ -180,6 +187,19 @@ router.patch('/:id/notes', requireAdmin, async (req: Request, res: Response) => 
   }
   
   res.json(order);
+});
+
+router.delete('/:id', requireAdmin, async (req: Request, res: Response) => {
+  const orderService = container.resolve<OrderService>('OrderService');
+  
+  const deleted = await orderService.delete(req.params.id);
+  
+  if (!deleted) {
+    res.status(404).json({ error: 'Order not found' });
+    return;
+  }
+  
+  res.json({ success: true, message: 'Order deleted successfully' });
 });
 
 export { router as orderRoutes };

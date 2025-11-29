@@ -28,14 +28,6 @@ const bannerSchema = z.object({
   isActive: z.boolean().default(true)
 });
 
-const floatingElementSchema = z.object({
-  type: z.enum(['icon', 'image']),
-  icon: z.enum(['heart', 'star', 'sparkles']).optional(),
-  image: z.string().optional(),
-  imagePublicId: z.string().optional(),
-  position: z.enum(['top-right', 'bottom-right', 'middle-left']),
-  isActive: z.boolean().default(true)
-});
 
 // Public routes - accessible to everyone (logged in or not)
 // This includes the website theme which applies to all users
@@ -203,32 +195,6 @@ router.put('/seo', requireAdmin, async (req: Request, res: Response) => {
   res.json(settings);
 });
 
-// Floating Elements
-router.put('/floating-elements', requireAdmin, async (req: Request, res: Response) => {
-  const settingsService = container.resolve<SettingsService>('SettingsService');
-  
-  const { elements } = z.object({
-    elements: z.array(floatingElementSchema)
-  }).parse(req.body);
-  
-  const settings = await settingsService.updateFloatingElements(elements);
-  res.json(settings);
-});
-
-router.put('/floating-elements/:id', requireAdmin, async (req: Request, res: Response) => {
-  const settingsService = container.resolve<SettingsService>('SettingsService');
-  
-  const element = floatingElementSchema.partial().parse(req.body);
-  const settings = await settingsService.updateFloatingElement(req.params.id, element);
-  
-  if (!settings) {
-    res.status(404).json({ error: 'Floating element not found' });
-    return;
-  }
-  
-  res.json(settings);
-});
-
 // Website Theme
 router.put('/website-theme', requireAdmin, async (req: Request, res: Response) => {
   try {
@@ -263,6 +229,24 @@ router.put('/website-theme', requireAdmin, async (req: Request, res: Response) =
       message: error instanceof Error ? error.message : 'Unknown error'
     });
   }
+});
+
+// Featured Collection
+router.put('/featured-collection', requireAdmin, async (req: Request, res: Response) => {
+  const settingsService = container.resolve<SettingsService>('SettingsService');
+  
+  const collection = z.object({
+    label: z.string().optional(),
+    title: z.string().optional(),
+    titleHighlight: z.string().optional(),
+    description: z.string().optional(),
+    buttonText: z.string().optional(),
+    collectionId: z.string().optional(),
+    isActive: z.boolean().optional()
+  }).parse(req.body);
+  
+  const settings = await settingsService.updateFeaturedCollection(collection);
+  res.json(settings);
 });
 
 export { router as settingsRoutes };

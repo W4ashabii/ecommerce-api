@@ -13,15 +13,13 @@ const productSchema = z.object({
   price: z.number().positive(),
   salePrice: z.number().positive().optional(),
   category: z.string().min(1),
+  images: z.array(z.string()).optional(),
   colorVariants: z.array(z.object({
     name: z.string(),
     hex: z.string(),
-    images: z.array(z.string()),
     stock: z.number().min(0)
   })).optional(),
   sizes: z.array(z.string()).optional(),
-  modelUrl: z.string().optional(),
-  modelPublicId: z.string().optional(),
   featured: z.boolean().optional(),
   isNewArrival: z.boolean().optional(),
   isBestSeller: z.boolean().optional(),
@@ -32,7 +30,6 @@ const productSchema = z.object({
 const colorVariantSchema = z.object({
   name: z.string().min(1),
   hex: z.string().min(1),
-  images: z.array(z.string()),
   stock: z.number().min(0)
 });
 
