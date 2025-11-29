@@ -32,37 +32,61 @@ const getCookieOptions = () => ({
 router.get('/google/url', (req: Request, res: Response) => {
   const authService = container.resolve<AuthService>('AuthService');
   const url = authService.getGoogleAuthUrl();
-  res.json({ url });
+  
+  // Extract redirect_uri from the URL for debugging
+  const urlObj = new URL(url);
+  const redirectUri = urlObj.searchParams.get('redirect_uri');
+  
+  res.json({ 
+    url,
+    redirectUri: redirectUri || 'Not found in URL',
+    frontendUrl: config.frontendUrl,
+    expectedRedirectUri: `${config.frontendUrl}/auth/callback`
+  });
 });
 
 // Exchange authorization code for tokens (secure flow with client secret)
 router.post('/google/callback', async (req: Request, res: Response) => {
-  const { code } = googleCodeSchema.parse(req.body);
-  
-  const authService = container.resolve<AuthService>('AuthService');
-  
-  // Exchange code for tokens (uses client secret on server)
-  const googleUser = await authService.exchangeCodeForTokens(code);
-  
-  // Find or create user
-  const user = await authService.findOrCreateUser(googleUser);
-  
-  // Generate JWT
-  const token = authService.generateToken(user);
-  
-  // Set HTTP-only cookie
-  res.cookie('auth_token', token, getCookieOptions());
-  
-  res.json({
-    user: {
-      id: user._id,
-      email: user.email,
-      name: user.name,
-      picture: user.picture,
-      role: user.role,
-      theme: user.theme
-    }
-  });
+  try {
+    const { code } = googleCodeSchema.parse(req.body);
+    
+    const authService = container.resolve<AuthService>('AuthService');
+    
+    // Exchange code for tokens (uses client secret on server)
+    const googleUser = await authService.exchangeCodeForTokens(code);
+    
+    // Find or create user
+    const user = await authService.findOrCreateUser(googleUser);
+    
+    // Generate JWT
+    const token = authService.generateToken(user);
+    
+    // Set HTTP-only cookie
+    res.cookie('auth_token', token, getCookieOptions());
+    
+    res.json({
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        picture: user.picture,
+        role: user.role,
+        theme: user.theme
+      }
+    });
+  } catch (error) {
+    console.error('OAuth callback error:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      code: req.body?.code ? 'Present' : 'Missing'
+    });
+    
+    res.status(500).json({
+      error: 'Authentication failed',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 // Google OAuth with ID token (legacy/alternative flow)

@@ -32,11 +32,18 @@ export class AuthService {
   // Exchange authorization code for tokens (uses client secret)
   async exchangeCodeForTokens(code: string): Promise<GoogleUserInfo> {
     try {
+      console.log('Attempting to exchange code for tokens...');
+      console.log('Client ID:', config.googleClientId);
+      console.log('Redirect URI:', `${config.frontendUrl}/auth/callback`);
+      
       const { tokens } = await this.googleClient.getToken(code);
       
       if (!tokens.id_token) {
+        console.error('No ID token in response');
         throw new Error('No ID token received');
       }
+
+      console.log('Tokens received, verifying ID token...');
 
       // Verify the ID token
       const ticket = await this.googleClient.verifyIdToken({
@@ -47,8 +54,11 @@ export class AuthService {
       const payload = ticket.getPayload();
       
       if (!payload || !payload.email) {
+        console.error('Invalid token payload:', payload);
         throw new Error('Invalid token payload');
       }
+
+      console.log('Token verified successfully for:', payload.email);
 
       return {
         email: payload.email,
@@ -58,7 +68,12 @@ export class AuthService {
       };
     } catch (error) {
       console.error('Code exchange error:', error);
-      throw new Error('Failed to exchange authorization code');
+      console.error('Error type:', error?.constructor?.name);
+      console.error('Error message:', error instanceof Error ? error.message : String(error));
+      if (error instanceof Error && error.stack) {
+        console.error('Error stack:', error.stack);
+      }
+      throw error; // Re-throw original error for better debugging
     }
   }
 

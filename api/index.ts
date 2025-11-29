@@ -4,6 +4,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import mongoose from 'mongoose';
 import { config } from '../src/config/index.js';
 import { connectDatabase } from '../src/config/database.js';
 import { errorHandler } from '../src/middleware/errorHandler.js';
@@ -35,8 +36,79 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', async (req, res) => {
+  try {
+    const dbStatus = mongoose.connection.readyState;
+    const dbConnected = dbStatus === 1;
+    
+    res.json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      database: {
+        connected: dbConnected,
+        state: dbStatus === 0 ? 'disconnected' : dbStatus === 1 ? 'connected' : dbStatus === 2 ? 'connecting' : 'disconnecting'
+      },
+      environment: {
+        nodeEnv: config.nodeEnv,
+        hasMongoUri: !!config.mongodbUri,
+        hasJwtSecret: !!config.jwtSecret,
+        hasGoogleClientId: !!config.googleClientId,
+        frontendUrl: config.frontendUrl
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Diagnostic endpoint
+app.get('/diagnostic', async (req, res) => {
+  try {
+    const diagnostics: any = {
+      timestamp: new Date().toISOString(),
+      database: {
+        readyState: mongoose.connection.readyState,
+        state: mongoose.connection.readyState === 0 ? 'disconnected' : 
+               mongoose.connection.readyState === 1 ? 'connected' : 
+               mongoose.connection.readyState === 2 ? 'connecting' : 'disconnecting',
+        host: mongoose.connection.host || 'not connected',
+        name: mongoose.connection.name || 'not connected'
+      },
+      config: {
+        nodeEnv: config.nodeEnv,
+        hasMongoUri: !!config.mongodbUri,
+        mongoUriPrefix: config.mongodbUri ? config.mongodbUri.substring(0, 20) + '...' : 'missing',
+        hasJwtSecret: !!config.jwtSecret,
+        hasGoogleClientId: !!config.googleClientId,
+        googleClientIdPrefix: config.googleClientId ? config.googleClientId.substring(0, 30) + '...' : 'missing',
+        hasGoogleClientSecret: !!config.googleClientSecret,
+        frontendUrl: config.frontendUrl
+      }
+    };
+
+    // Try to test database connection
+    if (mongoose.connection.readyState !== 1) {
+      try {
+        await ensureDatabaseConnection();
+        diagnostics.database.testConnection = 'attempted';
+      } catch (error) {
+        diagnostics.database.testConnectionError = error instanceof Error ? error.message : 'Unknown error';
+      }
+    } else {
+      diagnostics.database.testConnection = 'already connected';
+    }
+
+    res.json(diagnostics);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Diagnostic failed',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.stack : undefined) : undefined
+    });
+  }
 });
 
 // API Routes
@@ -52,27 +124,86 @@ app.use('/api/orders', orderRoutes);
 app.use(errorHandler);
 
 // Connect to database on cold start (Vercel serverless)
-let dbConnected = false;
+let dbConnecting = false;
 
 const ensureDatabaseConnection = async () => {
-  if (!dbConnected) {
+  // Check if already connected (readyState: 0 = disconnected, 1 = connected, 2 = connecting)
+  if (mongoose.connection.readyState === 1) {
+    return; // Already connected
+  }
+  
+  // Check if connection is in progress
+  if (mongoose.connection.readyState === 2) {
+    // Connection in progress, wait for it with timeout
+    return new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => resolve(), 1000); // 1 second timeout
+      mongoose.connection.once('connected', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+      mongoose.connection.once('error', () => {
+        clearTimeout(timeout);
+        resolve(); // Don't block on error
+      });
+    });
+  }
+  
+  // Prevent multiple simultaneous connection attempts
+  if (dbConnecting) {
+    return;
+  }
+  
+  dbConnecting = true;
+  try {
+    await connectDatabase();
+  } catch (error) {
+    console.error('Failed to connect to database:', error);
+    // Don't throw - allow the function to continue
+    // Database connection will be retried on next request
+  } finally {
+    dbConnecting = false;
+  }
+};
+
+// Initialize database connection on module load (for Vercel serverless)
+// This will be reused across function invocations
+let dbInitialized = false;
+
+const initializeDatabase = async () => {
+  if (!dbInitialized) {
     try {
-      await connectDatabase();
-      dbConnected = true;
+      await ensureDatabaseConnection();
+      dbInitialized = true;
+      console.log('Database connection initialized');
     } catch (error) {
-      console.error('Failed to connect to database:', error);
-      // Don't throw - allow the function to continue
-      // Database connection will be retried on next request
+      console.error('Failed to initialize database:', error);
+      // Don't throw - will retry on first request
     }
   }
 };
 
-// Vercel serverless function handler
-export default async (req: express.Request, res: express.Response) => {
-  // Ensure database is connected
-  await ensureDatabaseConnection();
-  
-  // Handle the request
-  return app(req, res);
+// Initialize on module load
+initializeDatabase().catch(console.error);
+
+// Vercel serverless function handler - routes all requests through Express
+const handler = async (req: express.Request, res: express.Response) => {
+  try {
+    // Ensure database is connected
+    await ensureDatabaseConnection();
+    
+    // Handle the request through Express app
+    return app(req, res);
+  } catch (error) {
+    console.error('Request handler error:', error);
+    
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
 };
+
+export default handler;
 

@@ -39,10 +39,18 @@ const floatingElementSchema = z.object({
 
 // Public routes
 router.get('/', async (req: Request, res: Response) => {
-  const settingsService = container.resolve<SettingsService>('SettingsService');
-  
-  const settings = await settingsService.getSettings();
-  res.json(settings);
+  try {
+    const settingsService = container.resolve<SettingsService>('SettingsService');
+    
+    const settings = await settingsService.getSettings();
+    res.json(settings);
+  } catch (error) {
+    console.error('Settings GET error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch settings',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 // Admin routes
