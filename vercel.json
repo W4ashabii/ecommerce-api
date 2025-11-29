@@ -2,7 +2,6 @@
   "version": 2,
   "buildCommand": "pnpm build",
   "installCommand": "pnpm install",
-  "framework": null,
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -12,11 +11,6 @@
       "source": "/health",
       "destination": "/api/index.ts"
     }
-  ],
-  "functions": {
-    "api/index.ts": {
-      "runtime": "@vercel/node"
-    }
-  }
+  ]
 }
 
